@@ -1,0 +1,121 @@
+1. What's a RubyGem and why would you use one?
+
+A gem is a software package that accomplishes a purpose.  It is packaged and made available to the general public so that developers who need to accomplish that purpose can add it as a dependency to their application, then use its functionality so that they do not have to rewrite the functionality themselves.  Rails is a Gem.  It provides an opinionated architectural framework that makes the development of dynamic websites backed by persistent databases a fast and efficient process.  One of the features of Rails is a Ruby module called ActiveRecord that contains a Base Class.  All Models in Rails,which are the Ruby representation of database tables, inherit from the Base Class in ActiveRecord.  The Methods associated with ActiveRecord and the Base Class constitute what we call an ORM (object relational mapping) that is basically a translator between Ruby and database languages.  We are creating a basic version of ActiveRecord that will allow us to interact with sqlite3, while writing our code in Ruby.
+
+2. What's the difference between lazy and eager loading?
+
+Lazy versus Eager Loading:
+
+Eager loading occurs when an instance variable is loaded (assigned a value) on initialization.
+
+Lazy loading occurs when the instance variable is loaded (assigned a value) when needed.
+
+In our Record, when a Model is instantiated, @schema is not automatically loaded.  Since @schema is needed when we call #columns to get the column information (or when we call #attributes, which calls #columns) for the first time, then #columns calls #schema and @schema is loaded, but only if it was not previously loaded.  In either case @schema is returned.  This just prevents processing an unnecessary database query if we are never going to use it.
+
+3. What's the difference between the CREATE TABLE and INSERT INTO SQL statements?
+
+CREATE TABLE creates a new database table and INSERT INTO adds a record to a database table.
+
+4. What's the difference between extend and include? When would you use one or the other?
+
+Extend vs. Include
+
+Within a Class or a Module, if we `extend` a Module, we are making its Methods available to the original Class or Module as Class Methods.  Thus:
+
+  class Class
+    extend Module
+  end
+
+  module Module
+    def Method
+    end
+  end
+
+Now we can call this:
+  
+  Class.Method
+
+A module can also extend itself, so that Methods within it can be directly called without another Class or Module having to `extend` it.
+
+  Module Module
+    extend self
+
+    def Method
+    end
+  end
+
+Allows us to do this:
+
+  Module.Method
+
+When we `include` a Module in a Class, we are making the Methods written in the Module available as instance Methods for the Class.  Thus:
+
+  class Class
+    include Module
+  end
+  
+  module Module
+    def Method
+    end
+  end
+
+This allows us to do this:
+
+  class_instance = Class.new
+  class_instance.Method
+
+As to why we would use one over another, this is essentially the same question as to why we would use a Class Method over an instance Method.  Our very first use of extend, in the Utility Module, is an example of why we would want to use Class Methods instead of instance Methods.  The #underscore Method reformats the Model name, in CamelCase, to the snake_case name of the database table.  When we are retrieving a record to represent as an instance of  the Model, we need do this reformatting in order to even query the database, which means we need to do it before we have an instance of the Model.  
+
+Now I suppose we could instantiate the Model without attributes, then use #underscore as an instance Method before querying the database and then populating the instance with attribute values in its instance variables, but giving our module the ability to do this conversion without invoking an instance gives us greater flexibility.
+
+Also, the #underscore conversion is a Method that is independent of instances.  It converts the Class name to the database table name.  If we wanted to retrieve all records in a table, why would we want to instantiate the Model just get the records.  It is appropriate for this to be a Class Method.
+
+However there are some Methods, such as the #save! Method, which edits a specific record, or instance of a Model, that are appropriately `instance` Methods, because they affect only a specific instance of a Model.  You would never use #save! without referencing an instance of the Model.  Thus we `include` the Persistence Module containing the #save! Method, so that it is an instance Method for Model Classes.
+
+5. In persistence.rb, why do the save Methods need to be instance (vs. Class) Methods?
+
+The save Methods specifically update a given record's information.  The Model instance is the Ruby representation of a record in the database table.  In order to update the information, first we must retrieve the information from the database and instantiate the Model with the given information.  Then the information can be edited by changing the values in the instance variables that correspond to the values in the database columns.  If we instantiate an empty Model object, then populate it in order to create a new record by calling save!, we would still be dealing with an instance.  So for all cases in which we are using a save Method, we are dealing with an instance.  This is not true for create, where we can create a record in the database table before we instantiate an object with the attributes.  For these reasons, it is very organic to make the save Methods instance Methods, as they are only used with a specific instance of a Model.  
+
+We could make them Class Methods, but we would need to pass either the object or the attribute information to be updated to the Class Method, so it makes far more sense to use an instance Method, in which all the information needed is immediately available to the Method without passing it as a parameter.
+
+6. Given the Jar-Jar Binks example earlier, what is the final SQL query in persistence.rb's save! Method?
+
+This was the Jar-Jar example:
+
+Character.create({"character_name"=>"Jar-Jar Binks", "star_rating"=>1})
+
+I am assuming that what is wanted here is what the SQL query would look like if we were updating an existing database record to those values, in which case we would retrieve the given record, instantiate a Character object to encapsulate the attribute values for editing, change character_name to "Jar-Jar Binks" and star_rating to 1, then calling obj.save!
+
+This would be the resulting SQL query (assuming we were editing the first record):
+
+    UPDATE character
+    SET character_name = "Jar-Jar Binks", star_rating = 1
+    WHERE id = 1;
+
+7. AddressBook's entries instance variable no longer returns anything. We'll fix this in a later checkpoint. What changes will we need to make?
+
+We will need to add a Method to the AddressBook Model called #entries.   We presumably will do this with an instruction such as:
+
+  class AddressBook < KingRecord::Base
+
+    has_many :entries
+
+    ...
+
+  end
+
+Which is how it is done in Rails.  I am not sure exactly how the #has_many method works, but my guess is that it Provides an instance Method to instances of AddressBook called #entries, so that if we have something like this:
+
+  my_book = AddressBook.new
+  entry1 = Entry.new(..., address_book_id: my_book.id)
+  entry2 = Entry.new(..., address_book_id: my_book.id)
+
+Then calling this:
+
+  my_book.entries
+
+Will result in query to the entry database table:
+
+  SELECT * FROM entry WHERE id = #{my_book.id};
+
+Currently, AddressBook has no Methods for retrieving Entries that are associated with it.
