@@ -1,0 +1,24 @@
+3. After much thought, I have concluded that no general method of chaining #where with #joins is possible given our current implementation.
+
+Rails has at least two different subsets of methods that it can run on Relations.  
+  
+    1.  There are query_methods, such as #where, which can be called by a Model, and which return `self`, thereby allowing other Relation methods to be chained to it, including other query_mehods.  I am not going to pretend I understand the intricacies of this, mostly because a Model calls #where and thus the Model is the `self` of #where and #where returns #self, which means it is returning the Model, but it is really returning a relation?  That does not make sense, but I am fairly certain that Model.where(condition) returns an ActiveRecord Relation when it returns `self`, so I am a little bewildered.  But what I am sure about is that our Selection methods, including #where, now return Collections (because I have added that code from Checkpoint 5), which means we cannot chain other Selection methods to them.  We can only chain Collection methods.
+
+    2.  There are Relation methods, which are methods that actually fire a query and return instantiated Model objects.  So doing something like this: Topic.all.each; does a very interesting thing.  First the Topic.all returns an ActiveRecord::Relation, which is actually just an unloaded SQL query.  But chaining the #each method, which is not even a Relation method (it is an Array method), causes the SQL query to be loaded and the return is now still an ActiveRecord::Relation, but now it somehow contains the  information from the load (I have no idea how, I just know that if you run @topics = Topic.all; nil, then top.class => ActiveRecord::Relation, but no load occurs in Rails console.  Then when you call @topics, the load occurs and the return is still an ActiveRecord::Relation, but now it has all the record information from the load.  Then if you call @topics again, no load is performed, but the record information is still extant in @topics, therefore an ActiveRecord::Relation must have some way of being more than a storage for a SQL query; it must also be capable of storing the result of a SQL query).  So but now the ActiveRecord::Relation somehow recognizes that an Array method is being called on it and so typecasts itself into an array to perform the #each method, but when it is done, it remains NOT an Array but an ActiveRecord::Relation.
+
+So the offshoot of all this is that an instruction such as Article.joins(comments: :guest).where("comment.body IS NULL") cannot be processed the way we are doing it.  Rails is designed that so that an ActiveRecord::Relation is built combining the two methods, but our Selection methods fire a query and return a Collection of Article objects, which have no reference
+to either Comments or Guests, so we cannot even chain a Collection method #where to it because the method would not have any way of knowing which Comments it was supposed to search for (in this case it would be Comments that have at least one Guest, but the information pertaining to Guests was lost when #joins was called and an Array of Articles was returned.  Basically the #where chain on the #joins method has no way of knowing what criteria was used to select the Comments part of the #joins conditional (Comments associated with a Guest), so we cannot even try to parse the #where conditional and do a separate SQL query on the Comment table because it would search all Comments where the body attribute is NULL, not just the Comments associated with a Guest.
+
+4.
+
+sqlite> select department.department_name,
+   ...> avg(compensation.vacation_days) 
+   ...> from professor join department on professor.department_id = department.id
+   ...> join compensation on compensation.professor_id = professor.id
+   ...> group by department.department_name;
+department_name            avg(compensation.vacation_days)
+-------------------------  -------------------------------
+Care of Magical Creatures  13.0                           
+Defence Against the Dark   9.0                            
+Study of Ancient Runes     8.0                            
+Transfiguration            2.0   
