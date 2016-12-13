@@ -3,6 +3,7 @@ require 'king_record/schema'
 require 'king_record/persistence'
 require 'king_record/selection'
 require 'king_record/connection'
+require 'king_record/collection'
 
 module KingRecord
   class Base
