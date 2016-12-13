@@ -84,8 +84,13 @@ module Selection
     rows_to_array(rows)
   end
 
+# Assignment Problem 4: If no argument is passed, we return self.  This allows for 
+# Model.where.not calls.
+
   def where(*args)
-    if args.count > 1
+    if args.count == 0
+      return self
+    elsif args.count > 1
       expression = arg.shift
       params = args
     else
@@ -140,6 +145,23 @@ module Selection
         SQL
       end
     end
+
+    rows_to_array(rows)
+  end
+
+# I am writing this assuming only one not conditional and assuming that it is in hash form.
+# If it were in string form, then it would make more sense to simply call something like:
+# Entry.where("phone_number != '999-999-9999'") than it would to do this:
+# Entry.where.not("phone_number = '999-999-9999").
+
+  def not(arg)
+    expression_hash = KingRecord::Utility.convert_keys(arg)
+    expression = "#{expression_hash.keys[0]} != #{KingRecord::Utility.sql_strings(expression_hash.values[0])}"
+
+    rows = connection.execute <<~SQL
+      SELECT #{columns.join ","} FROM #{table}
+      WHERE #{expression};
+    SQL
 
     rows_to_array(rows)
   end
