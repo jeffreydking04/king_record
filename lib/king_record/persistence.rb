@@ -49,9 +49,9 @@ module Persistence
 
     def destroy(*ids)
       if ids.length > 1
-        where_clause = "WHERE id IN (#{id.join(",")});"
+        where_clause = "WHERE id IN (#{ids.join(",")});"
       else
-        where_clause = "WHERE id = #{id.first};"
+        where_clause = "WHERE id = #{ids.first};"
       end
 
       connection.execute <<~SQL
@@ -61,15 +61,41 @@ module Persistence
       true
     end
 
-    def destroy_all(conditions_hash=nil)
-      if conditions_hash && !conditions_hash.empty?
-        conditions_hash = KingRecord::Utility.convert_keys(conditions_hash)
-        conditions = conditions_hash.map { |key, value| "#{key}=#{KingRecord::Utility.sql_strings(value)}" }.join(" and ")
+# Assignment Problems 2 and 3: Assuming that if args is size 1, it is a hash or a string.
+# If mas, then it is an array.
 
-        connection.execute <<~SQL
+    def destroy_all(*args)
+      if args.size == 1
+        case args.first
+        when Hash
+          conditions_hash = KingRecord::Utility.convert_keys(args.first)
+          conditions = conditions_hash.map { |key, value| "#{key}=#{KingRecord::Utility.sql_strings(value)}" }.join(" and ")
+
+          connection.execute <<~SQL
+            DELETE FROM #{table}
+            WHERE #{conditions};
+          SQL
+        when String
+          connection.execute <<~SQL
+            DELETE FROM #{table} 
+            WHERE #{args.first};
+          SQL
+        else
+          raise "Invalid input"
+        end
+      elsif args.size > 1
+        expression = args.shift
+        expression.delete!("=")
+        expression.delete!("?")
+        params = args.map { |arg| KingRecord::Utility.sql_strings(arg) }.join(",")
+        expression = expression + " IN (" + params + ");"
+
+        sql = <<~SQL
           DELETE FROM #{table}
-          WHERE #{conditions};
+          WHERE #{expression};
         SQL
+
+        connection.execute(sql)       
       else
         connection.execute <<~SQL
           DELETE FROM #{table};

@@ -84,10 +84,22 @@ module Selection
     rows_to_array(rows)
   end
 
+# The passed as array portion of this never got tested.  When I was doing the same
+# implementation on #destroy_all, I ran into errors using this technique, so 
+# I came back here to see what I was doing wrong and it turns out the checkpoint
+# version does not work, unless I copied it wrong, which I do not think I did.  I
+# think using db.execute(sql,params) does not work the way we are implementing it.
+# The bind variables array needs to be the same length as the number of ? in the expression.
+
+# I am rewriting it using an IN expression.
+
   def where(*args)
     if args.count > 1
-      expression = arg.shift
-      params = args
+      expression = args.shift
+      expression.delete!("=")
+      expression.delete!("?")
+      params = args.map { |arg| KingRecord::Utility.sql_strings(arg) }.join(",")
+      expression = expression + " IN (" + params + ");"
     else
       case args.first
       when String
@@ -100,10 +112,10 @@ module Selection
 
     sql = <<~SQL
       SELECT #{columns.join ","} FROM #{table}
-      WHERE #{expression};
+      WHERE #{expression}
     SQL
 
-    rows = connection.execute(sql, params)
+    rows = connection.execute(sql)
     rows_to_array(rows)
   end
 
