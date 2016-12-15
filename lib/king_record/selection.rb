@@ -145,6 +145,9 @@ module Selection
   end
 
   def select(*fields)
+    fields.each do |field|
+      raise "missing attribute: #{field}" if !columns.include?(field.to_s)
+    end
     rows = connection.execute <<~SQL
       SELECT #{fields * ","} FROM #{table};
     SQL
