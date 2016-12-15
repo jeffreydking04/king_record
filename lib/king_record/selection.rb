@@ -144,6 +144,34 @@ module Selection
     rows_to_array(rows)
   end
 
+  def select(*fields)
+    rows = connection.execute <<~SQL
+      SELECT #{fields * ","} FROM #{table};
+    SQL
+    collection = KingRecord::Collection.new
+
+    rows.each { |row| collection << new(Hash[fields.zip(row)]) }
+    collection
+  end
+
+  def limit(value, offset=0)
+    rows = connection.execute <<~SQL
+      SELECT * FROM #{table} LIMIT #{value} OFFSET #{offset};
+    SQL
+    rows_to_array(rows)
+  end
+
+  def group(*args)
+    conditions = args.join(', ')
+
+    rows = connection.execute <<~SQL
+      SELECT * FROM #{table}
+      GROUP BY #{conditions};
+    SQL
+
+    rows_to_array(rows)
+  end
+
   private
 
   def init_object_from_row(row)
