@@ -85,17 +85,14 @@ module Persistence
         end
       elsif args.size > 1
         expression = args.shift
-        expression.delete!("=")
-        expression.delete!("?")
-        params = args.map { |arg| KingRecord::Utility.sql_strings(arg) }.join(",")
-        expression = expression + " IN (" + params + ");"
+        params = args
 
         sql = <<~SQL
           DELETE FROM #{table}
           WHERE #{expression};
         SQL
 
-        connection.execute(sql)       
+        connection.execute(sql, params)       
       else
         connection.execute <<~SQL
           DELETE FROM #{table};
